@@ -3,6 +3,7 @@ package wal
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -33,7 +34,10 @@ func AppendEntryToFile(f *os.File, entry []byte, sync bool) error {
 func NextEntryFromFile(f *os.File, entry []byte) ([]byte, error) {
 	n := uint32(0)
 	if err := binary.Read(f, binary.BigEndian, &n); err != nil {
-		return entry, fmt.Errorf("reading len: %v", err)
+		if err == io.EOF {
+			return entry, err
+		}
+		return []byte{}, fmt.Errorf("reading len: %v", err)
 	}
 
 	// Grow the entry if it does not have enough capacity. We do not need to
@@ -46,6 +50,9 @@ func NextEntryFromFile(f *os.File, entry []byte) ([]byte, error) {
 
 	m, err := f.Read(entry)
 	if err != nil {
+		if err == io.EOF {
+			return entry[:m], err
+		}
 		return entry[:m], fmt.Errorf("reading entry: %v", err)
 	}
 	return entry[:m], nil
